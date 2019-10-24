@@ -368,6 +368,20 @@ class ScratchEnsemble(object):
         """
         self.to_virtual().to_disk(filesystempath, delete, dumpcsv, dumpparquet)
 
+    def to_azure(self, filesystempath):
+        """Publish the ensemble on Azure.
+
+        The ScratchEnsemble is first converted to a VirtualEnsemble, 
+        which is then dumped to disk. This is a convenciane wrapper
+        for to_azure() in VirtualEnsemble.
+
+        DEV: For now, will just dump to local disk.
+
+        """
+
+        self.to_virtual().to_azure(filesystempath)
+
+
     @property
     def parameters(self):
         """Getter for get_parameters(convert_numeric=True)
@@ -518,7 +532,7 @@ class ScratchEnsemble(object):
                 .reset_index()
                 .rename(columns={"level_0": "REAL"})
                 .drop("level_1", axis="columns")
-            )
+            ).sort_values(by='REAL').reset_index(drop=True)
         return pd.DataFrame()
 
     def __repr__(self):
@@ -1235,7 +1249,8 @@ class ScratchEnsemble(object):
             realfiles = realization.files.copy()
             realfiles.insert(0, "REAL", realidx)
             filedflist.append(realfiles)
-        return pd.concat(filedflist, ignore_index=True, sort=False)
+        return pd.concat(filedflist, ignore_index=True, 
+                                     sort=False).sort_values(by='REAL').reset_index(drop=True)
 
     @property
     def name(self):
