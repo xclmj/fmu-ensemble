@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import datetime
+import yaml
 
 import numpy as np
 import pandas as pd
@@ -45,7 +46,7 @@ class VirtualEnsemble(object):
     """
 
     def __init__(
-        self, name=None, data=None, longdescription=None, fromdisk=None, lazy_load=False
+        self, name=None, data=None, longdescription=None, fromdisk=None, lazy_load=False, manifest=None,
     ):
         if name:
             self._name = name
@@ -53,6 +54,7 @@ class VirtualEnsemble(object):
             self._name = "VirtualEnsemble"
 
         self._longdescription = longdescription
+        self._manifest = manifest
 
         if data and fromdisk:
             raise ValueError(
@@ -662,7 +664,108 @@ file is picked up"""
             lazy_str = "(lazy) "
         else:
             lazy_str = ""
-        logger.info("Loading ensemble from disk %stook %g seconds", lazy_str, (end_time - start_time).total_seconds())
+        logger.info("Loading ensemble from disk %s took %g seconds", lazy_str, (end_time - start_time).total_seconds())
+
+
+    def to_azure(self, temporary_filesystempath):
+        """
+
+        Publish an ensemble to Azure for consumption via RMrC API
+
+        DEV: From a VirtualEnsemble, create the specified storage format
+             and dump to local disk for manual upload. Later: Include upload.
+
+             Possibly the best way is to assemble the files locally /tmp/,
+             then upload, then confirm, then delete.
+
+
+        Format description:
+        Data:     All files from the ensemble, stored in the 'data' folder
+        Index:    JSON index of all files in ensemble, including all metadata
+                  fetched from .yaml files and other sources. Either one large, or
+                  one json per endpoint.
+        Manifest: JSON manifest for the ensemble, from the runinfo files.
+
+        """
+        
+
+        # return self.to_disk(temporary_filesystempath)  # did not work very well...
+
+
+
+        # for now, code is copied from .to_disk()
+
+        def prepare_blob_structure(filesystempath, delete=False):
+            """Prepare a directory for dumping a virtual ensemble.
+
+            The end result is either an error, or a clean empty directory
+            at the requested path"""
+            if os.path.exists(filesystempath):
+                if delete:
+                    shutil.rmtree(filesystempath)
+                    os.mkdir(filesystempath)
+                else:
+                    if os.listdir(filesystempath):
+                        logger.critical(
+                            "Refusing to write virtual ensemble "
+                            + " to non-empty directory"
+                        )
+                        raise IOError("Directory %s not empty" % filesystempath)
+            else:
+                os.mkdir(filesystempath)
+                os.mkdir(os.path.join(filesystempath, "data"))
+                os.mkdir(os.path.join(filesystempath, "manifest"))
+                os.mkdir(os.path.join(filesystempath, "index"))
+
+        def copy_files(filesystempath, localdir="data"):
+
+            # code from .to_disk()
+            for _, filerow in self.files.iterrows():
+                src_fpath = filerow["FULLPATH"]
+                dest_fpath = os.path.join(
+                    filesystempath,
+                    localdir,
+                    "realization-" + str(filerow["REAL"]),
+                    filerow["LOCALPATH"],
+                )
+                directory = os.path.dirname(dest_fpath)
+                if not os.path.exists(directory):
+                    os.makedirs(os.path.dirname(dest_fpath))
+                shutil.copy(src_fpath, dest_fpath)
+
+
+        def dump_manifest(filesystempath, localdir="manifest"):
+            """Dump the internalized ensemble manifest to disk"""
+
+            # initialise it with some values we might want to inject
+            compiled_manifest = {'rmrc' : {'SomeKey' : 'SomeValue',
+                                           'SomeOtherKey' : 'SomeValue'
+                                           }
+                                }
+
+            if self._manifest is not None:
+                compiled_manifest.update(self._manifest)
+
+            dest_fpath = os.path.join(
+                filesystempath,
+                localdir,
+                'manifest.yaml')
+
+            with open(dest_fpath, 'w+') as outfile:
+                yaml.dump(compiled_manifest, outfile, default_flow_style=False)
+
+            print('yaml dumped')
+
+
+        prepare_blob_structure(temporary_filesystempath)
+        copy_files(temporary_filesystempath)
+        dump_manifest(temporary_filesystempath)
+
+        print('OK')
+
+
+
+
 
 
     def _load_frame_fromdisk(self, key, filename):

@@ -11,6 +11,8 @@ import os
 import glob
 from datetime import datetime
 
+import yaml
+
 import six
 import pandas as pd
 import numpy as np
@@ -75,7 +77,13 @@ class ScratchEnsemble(object):
     def __init__(
         self,
         ensemble_name,
-        paths=None,
+        #paths=None,
+
+        ensemble_path,
+        iter_name,
+        local_paths='realization-*',
+        manifest_localname=None,
+
         realidxregexp=None,
         runpathfile=None,
         runpathfilter=None,
@@ -89,15 +97,29 @@ class ScratchEnsemble(object):
         self._global_size = None
         self._global_grid = None
         self.obs = None
+        self._ensemble_path = ensemble_path
+        self._manifest_localname = manifest_localname
+        self._iter_name = iter_name
 
-        if isinstance(paths, str):
-            paths = [paths]
+        if isinstance(local_paths, str):
+            local_paths = [local_paths]
+
+        # create paths from local_paths and ensemble_path
+        paths = [os.path.join(ensemble_path, local_path, iter_name) for local_path in local_paths]
 
         if paths and runpathfile:
             logger.error("Cannot initialize from both path and runpathfile")
             return
 
+        if self._manifest_localname is None:
+            logger.warning("Proceeding with no manifest.")
+            self.manifest = None
+        else:
+            self.manifest = self.parse_manifest(os.path.join(self._ensemble_path, self._iter_name, self._manifest_localname))
+
+
         globbedpaths = None
+
         if isinstance(paths, list):
             # Glob incoming paths to determine
             # paths for each realization (flatten and uniqify)
@@ -105,6 +127,8 @@ class ScratchEnsemble(object):
             globbedpaths = list(
                 set([item for sublist in globbedpaths for item in sublist])
             )
+
+
         if not globbedpaths:
             if isinstance(runpathfile, str):
                 if not runpathfile:
@@ -135,11 +159,26 @@ class ScratchEnsemble(object):
         else:
             logger.warning("ScratchEnsemble empty")
 
+
+
     def __getitem__(self, realizationindex):
         """Get one of the ScratchRealization objects.
 
         Indexed by integers."""
         return self._realizations[realizationindex]
+
+    def parse_manifest(self, fname):
+        """Given a filename to a valid yaml file, parse the contents, return as dict."""
+
+        if not os.path.exists(fname):
+            logger.warning('Could not find manifest in this location: {}'.format(fname))
+            return None
+
+        with open(fname, 'r') as stream:
+            manifest = yaml.load(stream, Loader=yaml.FullLoader)
+
+        return manifest
+
 
     def keys(self):
         """
@@ -348,7 +387,7 @@ class ScratchEnsemble(object):
         if not name:
             name = self._name
         logger.info("Creating virtual ensemble named %s", str(name))
-        vens = VirtualEnsemble(name=name)
+        vens = VirtualEnsemble(name=name, manifest=self.manifest)
 
         for key in self.keys():
             vens.append(key, self.get_df(key))
