@@ -667,7 +667,7 @@ file is picked up"""
         logger.info("Loading ensemble from disk %s took %g seconds", lazy_str, (end_time - start_time).total_seconds())
 
 
-    def to_azure(self, temporary_filesystempath):
+    def to_disk_azureprepared(self, temporary_filesystempath):
         """
 
         Publish an ensemble to Azure for consumption via RMrC API
@@ -756,10 +756,27 @@ file is picked up"""
 
             print('yaml dumped')
 
+        def create_dump_index(filesystempath, localdir="index", indexfname="index.csv"):
+            """Assemble and dump the index as dataframe
+
+            TODO: Explore possibility of using json
+            TODO: Explore extension of metadata fields
+            """
+
+            indexpath = os.path.join(filesystempath, localdir, indexfname)
+
+            # parse metadata if present for each file, append to the index.
+            # should be code for this elsewhere...
+
+
+            self.files.to_csv(indexpath, index=False)
+            print('index dumped')
+
 
         prepare_blob_structure(temporary_filesystempath)
         copy_files(temporary_filesystempath)
         dump_manifest(temporary_filesystempath)
+        create_dump_index(temporary_filesystempath)
 
         print('OK')
 

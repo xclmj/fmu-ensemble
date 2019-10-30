@@ -30,6 +30,108 @@ xfmu = Interaction()
 logger = xfmu.functionlogger(__name__)
 
 
+class AzureScratchEnsemble():
+    """Class for handling ensembles that are to be uploaded to the RMrC
+       storage on Azure. Class is initialized in an ensemble-centric way,
+       initializes a ScratchEnsemble object, which in turn initializes a
+       VirtualEnsemble object
+
+    Args:
+        ensemble_name (str): Name of ensemble. Will be passed to ScratchEnsemble
+        ensemble_path (path): Path to root of ensemble
+        manifest_path (path): 
+
+    TODO:
+        - tmp_storage_path to be replaced by a /tmp/<random>
+
+    """
+
+    def __init__(self,
+        ensemble_name,
+        ensemble_path,
+        iter_name,
+        manifest_path,
+        tmp_storage_path,        # DEV ONLY, will be replaced
+        searchpaths=None,
+        ):
+
+        self._ensemble_name = ensemble_name
+        self._ensemble_path = self.confirm_ensemble_path(ensemble_path)
+        self._iter_name = iter_name
+        self._manifest = self.parse_manifest(manifest_path)
+
+        if searchpaths is None:
+            # assume all files to be indexed
+            # for now just a dummy path
+            searchpaths = ['share/maps/*/*.*', 
+                           #'share/maps/isochores/*.*',
+                           #'share/maps/recoverables/*.*'
+                          ]
+        else:
+            if isinstance(searchpaths, str):
+                searchpaths = [searchpaths]
+            else:
+                pass
+
+        self.scratchensemble = self.build_scratchensemble(self._ensemble_name,
+                                                          self._ensemble_path,
+                                                          self._manifest, 
+                                                          searchpaths)
+
+        self.scratchensemble.to_virtual().to_disk_azureprepared(tmp_storage_path)
+
+        # authentication towards azure go here
+        # upload function with the returned token go here
+        # some confirmation functions (just API calls?) go here
+
+
+    def confirm_ensemble_path(self, path):
+        """Confirm that ensemble path is real, and points to a valid ensemble"""
+
+        if not os.path.exists(path):
+            logger.error('This path does not exist: {}'.format(path))
+            raise ValueError('Non-valid ensemble path provided.')
+
+        return path
+
+    def parse_manifest(self, fname):
+        """Parse the manifest from yaml, return as dict"""
+ 
+        if not os.path.exists(fname):
+            logger.warning('Could not find manifest in this location: {}'.format(fname))
+            return None
+
+        with open(fname, 'r') as stream:
+            manifest = yaml.load(stream, Loader=yaml.FullLoader)
+
+        return manifest
+
+    def build_scratchensemble(self, ensemble_name, ensemble_path, manifest, searchpaths):
+        """Initialize and return a ScratchEnsemble object"""
+
+        paths = '{}/realization-*/{}'.format(ensemble_path, self._iter_name)
+
+        scratchensemble = ScratchEnsemble(ensemble_name,
+                                          paths=paths,
+                                          manifest=manifest)
+
+        for searchpath in searchpaths:
+            scratchensemble.find_files(searchpath, metayaml=True)
+
+        return scratchensemble
+
+    def get_unique_foldername(self, prefix='/tmp/'):
+        """Return the prefix + a unique folder name"""
+        import uuid
+
+        unique_folder = os.path.join(prefix, str(uuid.uuid4()))
+
+        # double-check that this worked, call it again if not
+        if os.path.exists(unique_folder):
+            unique_folder = self.get_unique_foldername()
+
+        return unique_folder
+
 class ScratchEnsemble(object):
     """An ensemble is a collection of Realizations.
 
@@ -72,22 +174,18 @@ class ScratchEnsemble(object):
         autodiscovery (boolean): True by default, means that the class
             can try to autodiscover data in the realization. Turn
             off to gain more fined tuned control.
+        manifest ()
     """
 
     def __init__(
         self,
         ensemble_name,
-        #paths=None,
-
-        ensemble_path,
-        iter_name,
-        local_paths='realization-*',
-        manifest_localname=None,
-
+        paths=None,
         realidxregexp=None,
         runpathfile=None,
         runpathfilter=None,
         autodiscovery=True,
+        manifest=None,
     ):
         self._name = ensemble_name  # ensemble name
         self._realizations = {}  # dict of ScratchRealization objects,
@@ -97,29 +195,17 @@ class ScratchEnsemble(object):
         self._global_size = None
         self._global_grid = None
         self.obs = None
-        self._ensemble_path = ensemble_path
-        self._manifest_localname = manifest_localname
-        self._iter_name = iter_name
 
-        if isinstance(local_paths, str):
-            local_paths = [local_paths]
-
-        # create paths from local_paths and ensemble_path
-        paths = [os.path.join(ensemble_path, local_path, iter_name) for local_path in local_paths]
+        if isinstance(paths, str):
+            paths = [paths]
 
         if paths and runpathfile:
             logger.error("Cannot initialize from both path and runpathfile")
             return
 
-        if self._manifest_localname is None:
-            logger.warning("Proceeding with no manifest.")
-            self.manifest = None
-        else:
-            self.manifest = self.parse_manifest(os.path.join(self._ensemble_path, self._iter_name, self._manifest_localname))
-
+        self.manifest = manifest
 
         globbedpaths = None
-
         if isinstance(paths, list):
             # Glob incoming paths to determine
             # paths for each realization (flatten and uniqify)
@@ -127,8 +213,6 @@ class ScratchEnsemble(object):
             globbedpaths = list(
                 set([item for sublist in globbedpaths for item in sublist])
             )
-
-
         if not globbedpaths:
             if isinstance(runpathfile, str):
                 if not runpathfile:
@@ -166,18 +250,6 @@ class ScratchEnsemble(object):
 
         Indexed by integers."""
         return self._realizations[realizationindex]
-
-    def parse_manifest(self, fname):
-        """Given a filename to a valid yaml file, parse the contents, return as dict."""
-
-        if not os.path.exists(fname):
-            logger.warning('Could not find manifest in this location: {}'.format(fname))
-            return None
-
-        with open(fname, 'r') as stream:
-            manifest = yaml.load(stream, Loader=yaml.FullLoader)
-
-        return manifest
 
 
     def keys(self):
@@ -406,19 +478,6 @@ class ScratchEnsemble(object):
         convenience wrapper for to_disk() in VirtualEnsemble.
         """
         self.to_virtual().to_disk(filesystempath, delete, dumpcsv, dumpparquet)
-
-    def to_azure(self, filesystempath):
-        """Publish the ensemble on Azure.
-
-        The ScratchEnsemble is first converted to a VirtualEnsemble, 
-        which is then dumped to disk. This is a convenciane wrapper
-        for to_azure() in VirtualEnsemble.
-
-        DEV: For now, will just dump to local disk.
-
-        """
-
-        self.to_virtual().to_azure(filesystempath)
 
 
     @property

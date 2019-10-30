@@ -9,6 +9,7 @@ __version__ = theversion()
 del theversion
 
 from .ensemble import ScratchEnsemble  # noqa
+from .ensemble import AzureScratchEnsemble #noqa
 from .realization import ScratchRealization  # noqa
 from .ensembleset import EnsembleSet  # noqa
 from .virtualrealization import VirtualRealization  # noqa
