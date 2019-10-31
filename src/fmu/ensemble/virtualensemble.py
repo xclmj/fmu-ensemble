@@ -714,6 +714,7 @@ file is picked up"""
             else:
                 os.mkdir(filesystempath)
                 os.mkdir(os.path.join(filesystempath, "data"))
+                os.mkdir(os.path.join(filesystempath, "data/share"))
                 os.mkdir(os.path.join(filesystempath, "manifest"))
                 os.mkdir(os.path.join(filesystempath, "index"))
 
@@ -772,10 +773,31 @@ file is picked up"""
             self.files.to_csv(indexpath, index=False)
             print('index dumped')
 
+        def dump_internalized_dataframes(filesystempath, localdir="data/share"):
+            """Dump dataframes carried by the ScratchEnsemble object for tabular
+               data to disk. Return information that must be appended to index."""
+
+            print('dumping internal dataframes')
+
+            for key in self.data:
+                fname = os.path.join(filesystempath, localdir, str(key)+'.csv')
+                print('dumping {}'.format(fname))
+                self.data[key].to_csv(fname, index=False)
+
+            # return index info here | or print to __files?
+
+
 
         prepare_blob_structure(temporary_filesystempath)
+
+        # data section
         copy_files(temporary_filesystempath)
+        dump_internalized_dataframes(temporary_filesystempath)
+
+        # manifest section
         dump_manifest(temporary_filesystempath)
+
+        # index section
         create_dump_index(temporary_filesystempath)
 
         print('OK')

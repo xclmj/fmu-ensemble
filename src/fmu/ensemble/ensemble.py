@@ -78,11 +78,21 @@ class AzureScratchEnsemble():
                                                           self._manifest, 
                                                           searchpaths)
 
-        self.scratchensemble.to_virtual().to_disk_azureprepared(tmp_storage_path)
+        # create a VirtualEnsemble
+        vens = self.scratchensemble.to_virtual()
 
-        # authentication towards azure go here
-        # upload function with the returned token go here
-        # some confirmation functions (just API calls?) go here
+        # add smry data
+        smry = self.scratchensemble.get_smry()
+        vens.append('shared--smry', smry)   # shared is indicating that data goes across realizations
+        
+        # Dump to disk ready for upload
+        vens.to_disk_azureprepared(tmp_storage_path)
+
+
+        # TODO authentication towards azure go here, returns a token
+        # TODO some checks towards the storage (already existing ensemble, etc) goes here
+        # TODO upload function with the returned token go here
+        # TODO some confirmation functions (just API calls?) go here
 
 
     def confirm_ensemble_path(self, path):
@@ -116,6 +126,7 @@ class AzureScratchEnsemble():
                                           manifest=manifest)
 
         for searchpath in searchpaths:
+            print('searching {}'.format(searchpath))
             scratchensemble.find_files(searchpath, metayaml=True)
 
         return scratchensemble
@@ -468,6 +479,7 @@ class ScratchEnsemble(object):
         # __files is the magic name for the dataframe of
         # loaded files.
         vens.append("__files", self.files)
+
         return vens
 
     def to_disk(self, filesystempath, delete=False, dumpcsv=True, dumpparquet=True):
