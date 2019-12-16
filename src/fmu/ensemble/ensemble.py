@@ -18,6 +18,12 @@ import yaml
 from ecl import EclDataType
 from ecl.eclfile import EclKW
 
+try:
+    from concurrent.futures import ProcessPoolExecutor
+    USE_CONCURRENT = True
+except (ImportError):
+    USE_CONCURRENT = False
+
 from .etc import Interaction
 from .realization import ScratchRealization
 from .virtualrealization import VirtualRealization
@@ -243,13 +249,28 @@ class ScratchEnsemble(object):
             globbedpaths = glob.glob(paths)
 
         count = 0
-        for realdir in globbedpaths:
-            realization = ScratchRealization(
-                realdir,
-                realidxregexp=realidxregexp,
-                autodiscovery=autodiscovery,
-                batch=batch,
-            )
+        if USE_CONCURRENT:
+            with ProcessPoolExecutor() as executor:
+                loaded_reals = [
+                    executor.submit(
+                        ScratchRealization,
+                        realdir,
+                        realidxregexp=realidxregexp,
+                        autodiscovery=autodiscovery,
+                    ).result()
+                    for realdir in globbedpaths
+                ]
+        else:
+            loaded_reals = [
+                ScratchRealization(
+                    realdir,
+                    realidxregexp=realidxregexp,
+                    autodiscovery=autodiscovery,
+                    batch=batch,
+                )
+                for realdir in globbedpaths
+            ]
+        for realdir, realization in zip(globbedpaths, loaded_reals):
             if realization.index is None:
                 logger.critical(
                     "Could not determine realization index " + "for path " + realdir
