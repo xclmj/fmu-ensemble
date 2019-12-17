@@ -20,9 +20,8 @@ from ecl.eclfile import EclKW
 
 try:
     from concurrent.futures import ProcessPoolExecutor
-    USE_CONCURRENT = True
-except (ImportError):
-    USE_CONCURRENT = False
+except (ImportError, ModuleNotFoundError):
+    pass
 
 from .etc import Interaction
 from .realization import ScratchRealization
@@ -30,6 +29,7 @@ from .virtualrealization import VirtualRealization
 from .virtualensemble import VirtualEnsemble
 from .ensemblecombination import EnsembleCombination
 from .realization import parse_number
+from .common import use_concurrent
 
 xfmu = Interaction()
 logger = xfmu.functionlogger(__name__)
@@ -249,7 +249,9 @@ class ScratchEnsemble(object):
             globbedpaths = glob.glob(paths)
 
         count = 0
-        if USE_CONCURRENT:
+        if use_concurrent():
+            from concurrent.futures import ProcessPoolExecutor
+
             with ProcessPoolExecutor() as executor:
                 loaded_reals = [
                     executor.submit(
@@ -257,6 +259,7 @@ class ScratchEnsemble(object):
                         realdir,
                         realidxregexp=realidxregexp,
                         autodiscovery=autodiscovery,
+                        batch=batch,
                     ).result()
                     for realdir in globbedpaths
                 ]

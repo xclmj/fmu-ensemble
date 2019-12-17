@@ -30,6 +30,7 @@ from ecl.eclfile import EclFile
 from ecl.grid import EclGrid
 from ecl import EclFileFlagEnum
 
+
 HAVE_ECL2DF = False
 try:
     import ecl2df
@@ -41,6 +42,7 @@ except ImportError:
 from .etc import Interaction
 from .virtualrealization import VirtualRealization
 from .realizationcombination import RealizationCombination
+from .common import use_concurrent
 
 fmux = Interaction()
 logger = fmux.basiclogger(__name__)
@@ -109,7 +111,7 @@ class ScratchRealization(object):
             columns=["FULLPATH", "FILETYPE", "LOCALPATH", "BASENAME"]
         )
         self._eclsum = None  # Placeholder for caching
-        self._eclsum_include_restart = None  # Flag for cached object
+        self._eclsum_include_restart = None
 
         # The datastore for internalized data. Dictionary
         # indexed by filenames (local to the realization).
@@ -896,6 +898,10 @@ class ScratchRealization(object):
             EclSum: object representing the summary file. None if
                 nothing was found.
         """
+        if use_concurrent():
+            # In concurrent mode, caching is not used as
+            # we do not pickle the loaded EclSum objects
+            cache = False
         if cache and self._eclsum:  # Return cached object if available
             if self._eclsum_include_restart == include_restart:
                 return self._eclsum
@@ -1107,7 +1113,7 @@ class ScratchRealization(object):
         keys = set()
         for key in column_keys:
             if isinstance(key, str):
-                keys = keys.union(set(self._eclsum.keys(key)))
+                keys = keys.union(set(self.get_eclsum().keys(key)))
         return list(keys)
 
     def get_volumetric_rates(self, column_keys=None, time_index=None, time_unit=None):
