@@ -25,7 +25,7 @@ except ImportError:
     SKIP_FMU_TOOLS = True
 
 fmux = etc.Interaction()
-logger = fmux.basiclogger(__name__, level="WARNING")
+logger = fmux.basiclogger(__name__, level="INFO")
 
 if not fmux.testsetup():
     raise SystemExit()

@@ -250,8 +250,6 @@ class ScratchEnsemble(object):
 
         count = 0
         if use_concurrent():
-            from concurrent.futures import ProcessPoolExecutor
-
             with ProcessPoolExecutor() as executor:
                 loaded_reals = [
                     executor.submit(
@@ -756,23 +754,25 @@ class ScratchEnsemble(object):
         """
         if not stacked:
             raise NotImplementedError
-        # Future: Multithread this!
-        for realidx, realization in self._realizations.items():
-            # We do not store the returned DataFrames here,
-            # instead we look them up afterwards using get_df()
-            # Downside is that we have to compute the name of the
-            # cached object as it is not returned.
-            logger.info("Loading smry from realization %s", realidx)
-            realization.load_smry(
-                time_index=time_index,
-                column_keys=column_keys,
-                cache_eclsum=cache_eclsum,
-                start_date=start_date,
-                end_date=end_date,
-                include_restart=include_restart,
-            )
+        self.process_batch(
+            batch=[
+                {
+                    "load_smry": {
+                        "column_keys": column_keys,
+                        "time_index": time_index,
+                        "cache_eclsum": cache_eclsum,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "include_restart": include_restart,
+                    }
+                }
+            ]
+        )
+
         if isinstance(time_index, list):
             time_index = "custom"
+        # Note the dependency that the load_smry() function in
+        # ScratchRealization will store to this key-name:
         return self.get_df("share/results/tables/unsmry--" + time_index + ".csv")
 
     def get_volumetric_rates(self, column_keys=None, time_index=None):
@@ -914,8 +914,19 @@ class ScratchEnsemble(object):
             ScratchEnsemble: This ensemble object (self), for it
                 to be picked up by ProcessPoolExecutor and pickling.
         """
-        for realization in self._realizations.values():
-            realization.process_batch(batch)
+        if use_concurrent():
+            with ProcessPoolExecutor() as executor:
+                futures_reals = [
+                    executor.submit(real.process_batch(batch))
+                    for real in self._realizations.values()
+                ]
+                print("Returned from submit:")
+                print(type(futures_reals[0]))
+                print(type(futures_reals[0].result()))
+                self._realizations = [x.result() for x in futures_reals]
+        else:
+            for realization in self._realizations.values():
+                realization.process_batch(batch)
         return self
 
     def apply(self, callback, **kwargs):
