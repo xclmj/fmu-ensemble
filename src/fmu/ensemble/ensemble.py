@@ -916,14 +916,19 @@ class ScratchEnsemble(object):
         """
         if use_concurrent():
             with ProcessPoolExecutor() as executor:
+                real_indices = self._realizations.keys()
                 futures_reals = [
-                    executor.submit(real.process_batch(batch))
+                    executor.submit(real.process_batch, batch)
                     for real in self._realizations.values()
                 ]
-                print("Returned from submit:")
-                print(type(futures_reals[0]))
-                print(type(futures_reals[0].result()))
-                self._realizations = [x.result() for x in futures_reals]
+                # Reassemble the realization dictionary from
+                # the pickled results of the ProcessPool:
+                self._realizations = {
+                    r_idx: real
+                    for (r_idx, real) in zip(
+                        real_indices, [x.result() for x in futures_reals]
+                    )
+                }
         else:
             for realization in self._realizations.values():
                 realization.process_batch(batch)
