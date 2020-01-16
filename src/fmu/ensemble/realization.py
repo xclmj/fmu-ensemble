@@ -1276,6 +1276,8 @@ class ScratchRealization(object):
         """
         Fetch selected vectors from Eclipse Summary data.
 
+        NOTE: This function might face depreciation.
+
         Args:
             props_wildcard : string or list of strings with vector
                 wildcards
@@ -1283,24 +1285,22 @@ class ScratchRealization(object):
             a dataframe with values. Raw times from UNSMRY.
             Empty dataframe if no summary file data available
         """
-        if not self._eclsum:  # check if it is cached
-            self.get_eclsum()
-
-        if not self._eclsum:
+        if not self.get_eclsum():
+            # Return empty, but do not store the empty dataframe in self.data
             return pd.DataFrame()
 
         props = self._glob_smry_keys(props_wildcard)
 
-        if "numpy_vector" in dir(self._eclsum):
+        if "numpy_vector" in dir(self.get_eclsum()):
             data = {
-                prop: self._eclsum.numpy_vector(prop, report_only=False)
+                prop: self.get_eclsum().numpy_vector(prop, report_only=False)
                 for prop in props
             }
         else:  # get_values() is deprecated in newer libecl
             data = {
-                prop: self._eclsum.get_values(prop, report_only=False) for prop in props
+                prop: self.get_eclsum().get_values(prop, report_only=False) for prop in props
             }
-        dates = self._eclsum.get_dates(report_only=False)
+        dates = self.get_eclsum().get_dates(report_only=False)
         return pd.DataFrame(data=data, index=dates)
 
     def get_smry_dates(
