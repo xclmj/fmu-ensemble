@@ -1099,6 +1099,35 @@ class ScratchRealization(object):
         else:
             return pd.DataFrame()
 
+    def get_smry_meta(self, column_keys=None):
+        """
+        Provide metadata for summary data vectors.
+
+        A dictionary indexed by summary vector names are returned, and each
+        value is another dictionary with potentially the metadata types:
+        * unit (string)
+        * is_total (bool)
+        * is_rate (bool)
+        * is_historical (bool)
+        * get_num (int) (only provided if not None)
+
+        Args:
+            column_keys: List or str of column key wildcards
+        """
+        column_keys = self._glob_smry_keys(column_keys)
+        meta = {}
+        eclsum = self.get_eclsum()
+        for col in column_keys:
+            meta[col] = {}
+            meta[col]["unit"] = eclsum.unit(col)
+            meta[col]["is_total"] = eclsum.is_total(col)
+            meta[col]["is_rate"] = eclsum.is_rate(col)
+            meta[col]["is_historical"] = eclsum.smspec_node(col).is_historical()
+            num = eclsum.smspec_node(col).get_num()
+            if num is not None:
+                meta[col]["get_num"] = num
+        return meta
+
     def _glob_smry_keys(self, column_keys):
         """Utility function for globbing column names
 

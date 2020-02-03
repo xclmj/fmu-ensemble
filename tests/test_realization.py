@@ -951,3 +951,30 @@ def test_find_files_yml():
         yamlfile = "." + filename + ".yml"
         if os.path.exists(os.path.join(realdir, yamlfile)):
             os.unlink(os.path.join(realdir, yamlfile))
+
+
+def test_get_smry_meta():
+    """
+    Test getting eclsum metadata for single realization.
+    """
+    testdir = os.path.dirname(os.path.abspath(__file__))
+    realdir = os.path.join(testdir, "data/testensemble-reek001", "realization-0/iter-0")
+    real = ensemble.ScratchRealization(realdir)
+
+    meta = real.get_smry_meta(column_keys=["*"])
+    assert isinstance(meta, dict)
+    assert "FOPT" in meta
+    assert "FOPTH" in meta
+    assert meta["FOPT"]["unit"] == "SM3"
+    assert meta["FOPR"]["unit"] == "SM3/DAY"
+    assert meta["FOPT"]["is_total"]
+    assert not meta["FOPR"]["is_total"]
+    assert not meta["FOPT"]["is_rate"]
+    assert meta["FOPR"]["is_rate"]
+    assert not meta["FOPT"]["is_historical"]
+    assert meta["FOPTH"]["is_historical"]
+
+    # Can create dataframes like this:
+    meta_df = pd.DataFrame.from_dict(meta, orient="index")
+    hist_keys = meta_df[meta_df["is_historical"]].index
+    assert all([key.split(":")[0].endswith("H") for key in hist_keys])
