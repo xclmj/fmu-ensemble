@@ -1107,7 +1107,18 @@ class ScratchRealization(object):
 
         Args:
             column_keys: str or list of strings with patterns
+
+        Returns:
+            list of strings. Empty list if no summary loaded.
         """
+        if not self.get_eclsum():
+            logger.warning(
+                (
+                    "Calling _glob_smry_keys without any summary file is "
+                    " loaded returns empty list"
+                )
+            )
+            return []
         if not isinstance(column_keys, list):
             column_keys = [column_keys]
         keys = set()
