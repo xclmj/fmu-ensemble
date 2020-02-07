@@ -601,12 +601,15 @@ class ScratchEnsemble(object):
         Return a union of all Eclipse Summary vector names
         in all realizations (union).
 
+        If any requested key/pattern does not match anything, it is
+        silently ignored.
+
         Args:
             vector_match (str or list of str): Wildcards for vectors
                to obtain. If None, all vectors are returned
         Returns:
             list of str: Matched summary vectors. Empty list if no
-            summary file or no matched summary file vectors
+                summary file or no matched summary file vectors
         """
         if isinstance(vector_match, str):
             vector_match = [vector_match]
@@ -622,6 +625,43 @@ class ScratchEnsemble(object):
             else:
                 logger.warning("No EclSum available for realization %d", index)
         return list(result)
+
+    def get_smry_meta(self, column_keys=None):
+        """
+        Provide metadata for summary data vectors.
+
+        A dictionary indexed by summary vector names are returned, and each
+        value is another dictionary with potentially the following metadata types:
+        * unit (string)
+        * is_total (bool)
+        * is_rate (bool)
+        * is_historical (bool)
+        * get_num (int) (only provided if not None)
+
+        The requested columns are asked for over the entire ensemble, and if necessary
+        all realizations will be checked to obtain the metadata for a specific key.
+        If metadata differ between realization, behaviour is *undefined*.
+
+        Args:
+            column_keys (list or str): Column key wildcards.
+        """
+        ensemble_smry_keys = self.get_smrykeys(vector_match=column_keys)
+        meta = {}
+        missing_keys = set()
+        needed_reals = 0
+        # Loop over realizations until all requested keys are accounted for
+        for _, realization in self._realizations.items():
+            needed_reals += 1
+            real_meta = realization.get_smry_meta(column_keys=ensemble_smry_keys)
+            meta.update(real_meta)
+            missing_keys = set(ensemble_smry_keys) - set(meta.keys())
+            if not missing_keys:
+                break
+        if needed_reals:
+            logger.info(
+                "Searched %s realization(s) to get summary metadata", str(needed_reals)
+            )
+        return meta
 
     def get_df(self, localpath):
         """Load data from each realization and aggregate (vertically)
