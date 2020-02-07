@@ -385,6 +385,18 @@ class ScratchEnsemble(object):
         # __files is the magic name for the dataframe of
         # loaded files.
         vens.append("__files", self.files)
+
+        # Conserve metadata for smry vectors. Build metadata dict for all
+        # loaded summary vectors.
+        smrycolumns = [
+            vens.get_df(key).columns for key in self.keys() if "unsmry" in key
+        ]
+        smrycolumns = set(
+            [smrykey for sublist in smrycolumns for smrykey in sublist]
+        )  # flatten
+        meta = self.get_smry_meta(smrycolumns)
+        vens.append("__smry_metadata", pd.DataFrame.from_dict(meta, orient="index"))
+        # The metadata dictionary is stored as a Dataframe, with one row pr summary key
         return vens
 
     def to_disk(self, filesystempath, delete=False, dumpcsv=True, dumpparquet=True):
@@ -630,7 +642,7 @@ class ScratchEnsemble(object):
         """
         Provide metadata for summary data vectors.
 
-        A dictionary indexed by summary vector names are returned, and each
+        A dictionary indexed by summary vector names is returned, and each
         value is another dictionary with potentially the following metadata types:
         * unit (string)
         * is_total (bool)
@@ -644,6 +656,9 @@ class ScratchEnsemble(object):
 
         Args:
             column_keys (list or str): Column key wildcards.
+
+        Returns:
+            dict of dict with metadata information
         """
         ensemble_smry_keys = self.get_smrykeys(vector_match=column_keys)
         meta = {}

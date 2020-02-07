@@ -404,7 +404,7 @@ class VirtualEnsemble(object):
         """
         if not isinstance(dataframe, pd.DataFrame):
             raise ValueError("Can only append dataframes")
-        if "REAL" not in dataframe.columns:
+        if "REAL" not in dataframe.columns and not key.startswith("__"):
             raise ValueError("REAL column not in incoming dataframe")
         if key in self.data.keys() and not overwrite:
             logger.warning("Ignoring %s data already exists", key)
@@ -945,6 +945,31 @@ file is picked up"""
             vol_rate_df["REAL"] = realidx
             vol_rates_dfs.append(vol_rate_df)
         return pd.concat(vol_rates_dfs, ignore_index=True, sort=False)
+
+    def get_smry_meta(self, column_keys=None):
+        """
+        Provide metadata for summary data vectors.
+
+        A dictionary indexed by summary vector names is returned, and each
+        value is another dictionary with potentially the following metadata types:
+        * unit (string)
+        * is_total (bool)
+        * is_rate (bool)
+        * is_historical (bool)
+        * get_num (int) (only provided if not None)
+
+        This data is produced from loaded summary dataframes upon ensemble virtualization.
+
+        Args:
+            column_keys (list or str): Column key wildcards.
+
+        Returns:
+            dict of dict with metadata.
+        """
+        # TODO: Expand columns-keys over the set of known column keys in __smry_meta
+        # TODO: Return matching rows as a dict
+        return {}
+
 
     @property
     def files(self):

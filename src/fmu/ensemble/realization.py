@@ -1103,7 +1103,7 @@ class ScratchRealization(object):
         """
         Provide metadata for summary data vectors.
 
-        A dictionary indexed by summary vector names are returned, and each
+        A dictionary indexed by summary vector names is returned, and each
         value is another dictionary with potentially the metadata types:
         * unit (string)
         * is_total (bool)
